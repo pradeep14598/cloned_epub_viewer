@@ -26,7 +26,7 @@ A new flutter plugin project.
 
   s.dependency 'Flutter'
   s.dependency 'FolioReaderKit', '~> 1.4.0'
-  s.dependency 'Realm', '~> 3.17.3'
+  s.dependency 'Realm', '~> 10.28.3'
   s.ios.deployment_target = '9.0'
 
   

@@ -12,6 +12,7 @@ import com.folioreader.model.HighLight;
 import com.folioreader.model.locators.ReadLocator;
 import com.folioreader.util.OnHighlightListener;
 import com.folioreader.util.ReadLocatorListener;
+import com.folioreader.ui.base.OnSaveHighlight;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,31 +44,32 @@ public class Reader implements OnHighlightListener, ReadLocatorListener, FolioRe
 
     public void open(String bookPath) {
         path = bookPath;
-        new Thread(() -> {
-            try {
-                final Cursor _data = locatorDatabase.getReadableDatabase().rawQuery("SELECT * "
-                        + "FROM " + LocatorScheme.LocatorEntry.TABLE + " WHERE `" + LocatorScheme.LocatorEntry.ID
-                        + "` = ?", new String[] { path.split("/")[path.split("/").length - 1] });
-                if (_data.moveToLast()) {
-                    ReadLocator readLocator = ReadLocator.fromJson(
-                            "{\"bookId\":\"" + _data.getString(_data.getColumnIndex("bookId")) + "\",\"href\":\""
-                                    + _data.getString(_data.getColumnIndex("href")) + "\",\"created\":\""
-                                    + _data.getString(_data.getColumnIndex("created")) + "\",\"locations\":{\"cfi\":\""
-                                    + _data.getString(_data.getColumnIndex("locations")) + "\"},\"title\":\"\"}");
-                    folioReader.setReadLocator(readLocator);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final Cursor _data = locatorDatabase.getReadableDatabase().rawQuery("SELECT * "
+                            + "FROM " + LocatorScheme.LocatorEntry.TABLE + " WHERE `" + LocatorScheme.LocatorEntry.ID
+                            + "` = ?", new String[] { path.split("/")[path.split("/").length - 1] });
+                    if (_data.moveToLast()) {
+                        ReadLocator readLocator = ReadLocator.fromJson(
+                                "{\"bookId\":\"" + _data.getString(_data.getColumnIndex("bookId")) + "\",\"href\":\""
+                                        + _data.getString(_data.getColumnIndex("href")) + "\",\"created\":\""
+                                        + _data.getString(_data.getColumnIndex("created")) + "\",\"locations\":{\"cfi\":\""
+                                        + _data.getString(_data.getColumnIndex("locations")) + "\"},\"title\":\"\"}");
+                        folioReader.setReadLocator(readLocator);
+                    }
+                    _data.close();
+                    folioReader
+                            .setConfig(readerConfig.config, true)
+                            .openBook(path);
+                } catch (Exception e) {
+                    Log.i("EPUB OPEN ERROR", e.toString());
+                    Log.i("EPUB OPEN ERROR", e.getLocalizedMessage());
+                    Log.i("EPUB OPEN ERROR", e.getMessage());
+                    Log.i("EPUB OPEN ERROR", Arrays.toString(e.getStackTrace()));
+                    e.printStackTrace();
                 }
-                _data.close();
-                folioReader
-                        .setConfig(readerConfig.config, true)
-                        .openBook(path);
-                // folioReader.openBook(path);
-
-            } catch (Exception e) {
-                Log.i("EPUB OPEN ERROR", e.toString());
-                Log.i("EPUB OPEN ERROR", e.getLocalizedMessage());
-                Log.i("EPUB OPEN ERROR", e.getMessage());
-                Log.i("EPUB OPEN ERROR", Arrays.toString(e.getStackTrace()));
-                e.printStackTrace();
             }
         }).start();
     }
@@ -78,28 +80,33 @@ public class Reader implements OnHighlightListener, ReadLocatorListener, FolioRe
     }
 
     private void getHighlightsAndSave() {
-        new Thread(() -> {
-            ArrayList<HighLight> highlightList = null;
-            ObjectMapper objectMapper = new ObjectMapper();
-            try {
-                highlightList = objectMapper.readValue(
-                        loadAssetTextAsString(),
-                        new TypeReference<List<HighlightData>>() {
-                        });
-            } catch (IOException e) {
-                Log.i("EPUB HIGHLIGHT ERROR", e.toString());
-                Log.i("EPUB HIGHLIGHT ERROR", e.getLocalizedMessage());
-                Log.i("EPUB HIGHLIGHT ERROR", e.getMessage());
-                Log.i("EPUB HIGHLIGHT ERROR", Arrays.toString(e.getStackTrace()));
-                Log.i("EPUB HIGHLIGHT ERROR", Arrays.toString(e.getStackTrace()));
-                e.printStackTrace();
-            }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                ArrayList<HighLight> highlightList = null;
+                ObjectMapper objectMapper = new ObjectMapper();
+                try {
+                    highlightList = objectMapper.readValue(
+                            loadAssetTextAsString(),
+                            new TypeReference<List<HighlightData>>() {
+                            });
+                } catch (IOException e) {
+                    Log.i("EPUB HIGHLIGHT ERROR", e.toString());
+                    Log.i("EPUB HIGHLIGHT ERROR", e.getLocalizedMessage());
+                    Log.i("EPUB HIGHLIGHT ERROR", e.getMessage());
+                    Log.i("EPUB HIGHLIGHT ERROR", Arrays.toString(e.getStackTrace()));
+                    Log.i("EPUB HIGHLIGHT ERROR", Arrays.toString(e.getStackTrace()));
+                    e.printStackTrace();
+                }
 
-            if (highlightList != null) {
-                folioReader.saveReceivedHighLights(highlightList, () -> {
-
-                    // You can do anything on successful saving highlight list
-                });
+                if (highlightList != null) {
+                    folioReader.saveReceivedHighLights(highlightList, new OnSaveHighlight() {
+                        @Override
+                        public void onFinished() {
+                            // You can do anything on successful saving highlight list
+                        }
+                    });
+                }
             }
         }).start();
     }
